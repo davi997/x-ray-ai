@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>قراءة الأشعة بالذكاء الاصطناعي</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e8edf0;--ink:#14212b;--mute:#566772;--card:#fff;--line:#c4d0d7;--ok:#1b7a4b;--bad:#b3261e;--warn:#8f6200;--film:#0d1418}
+@media(prefers-color-scheme:dark){:root{--bg:#10171b;--ink:#e6eef2;--mute:#93a3ad;--card:#18232a;--line:#2a3a44;--ok:#5fcf99;--bad:#ff8a80;--warn:#e5b84b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Cairo,system-ui,sans-serif;line-height:1.7}
+header{max-width:980px;margin:0 auto;padding:36px 20px 8px}
+h1{margin:0;font-size:clamp(26px,4vw,40px);font-weight:800}
+header p{margin:4px 0 0;color:var(--mute)}
+main{max-width:980px;margin:0 auto;padding:20px;display:grid;grid-template-columns:1.2fr 1fr;gap:20px}
+@media(max-width:760px){main{grid-template-columns:1fr}}
+.viewer{background:var(--film);color:#9fb2bd;border-radius:12px;min-height:380px;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;cursor:pointer;outline:2px dashed #3b4d58;outline-offset:-10px}
+.viewer.over,.viewer:focus-visible{outline-color:#6fc3e0}
+.viewer img{max-width:100%;max-height:520px;border-radius:6px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;align-self:start}
+fieldset{border:0;padding:0;margin:0 0 16px;display:flex;gap:10px;flex-wrap:wrap}
+legend{font-weight:600;margin-bottom:8px;padding:0}
+fieldset label{flex:1}
+fieldset input{position:absolute;opacity:0}
+fieldset span{display:block;text-align:center;padding:10px;border:1.5px solid var(--line);border-radius:8px;cursor:pointer}
+fieldset input:checked+span{border-color:var(--ink);background:var(--ink);color:var(--bg);font-weight:600}
+fieldset input:focus-visible+span{outline:2px solid #6fc3e0;outline-offset:2px}
+button{width:100%;font:inherit;font-weight:600;padding:12px;border:0;border-radius:8px;background:var(--ink);color:var(--bg);cursor:pointer}
+button:disabled{opacity:.4;cursor:not-allowed}
+#out{margin-top:18px;border-radius:8px;padding:0 14px}
+#out:not(:empty){padding:14px;border-inline-start:6px solid var(--mute);background:var(--bg)}
+#out.ok{border-color:var(--ok)}#out.bad{border-color:var(--bad)}#out.warn{border-color:var(--warn)}
+#out h2{margin:0;font-size:22px}
+#out.ok h2{color:var(--ok)}#out.bad h2{color:var(--bad)}#out.warn h2{color:var(--warn)}
+.bar{height:6px;background:var(--line);border-radius:3px;margin:2px 0 8px}
+.bar i{display:block;height:100%;background:var(--ink);border-radius:3px}
+.row{display:flex;justify-content:space-between;font-size:14px}
+.note{margin:16px 0 0;font-size:13px;color:var(--mute)}
+@media(prefers-reduced-motion:no-preference){.bar i{transition:width .5s}}
+</style>
+</head>
+<body>
+<header>
+  <h1>قراءة الأشعة بالذكاء الاصطناعي</h1>
+  <p>ارفع صورة أشعة صدر أو مخ، والنموذج يحلّلها ويقول لك النتيجة.</p>
+</header>
+<main>
+  <section class="viewer" id="drop" tabindex="0" role="button" aria-label="اختر صورة الأشعة">
+    <img id="prev" hidden alt="معاينة الأشعة">
+    <p id="hint">اسحب صورة الأشعة هنا أو اضغط لاختيارها<br><small>JPG أو PNG</small></p>
+    <input type="file" id="file" accept="image/*" hidden>
+  </section>
+  <section class="panel">
+    <fieldset>
+      <legend>نوع الأشعة</legend>
+      <label><input type="radio" name="kind" value="chest" checked><span>أشعة الصدر</span></label>
+      <label><input type="radio" name="kind" value="brain"><span>أشعة المخ</span></label>
+    </fieldset>
+    <button id="go" disabled>حلّل الأشعة</button>
+    <div id="out" aria-live="polite"></div>
+    <p class="note">النتيجة من نموذج ذكاء اصطناعي للأغراض التعليمية فقط، ولا تغني عن تشخيص الطبيب.</p>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const drop = $('#drop'), file = $('#file'), go = $('#go'), out = $('#out');
+let img = null;
+
+drop.onclick = () => file.click();
+drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } };
+['dragover', 'dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => {
+  e.preventDefault();
+  drop.classList.toggle('over', t === 'dragover');
+  if (t === 'drop') pick(e.dataTransfer.files[0]);
+}));
+file.onchange = () => pick(file.files[0]);
+
+function pick(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  img = f;
+  $('#prev').src = URL.createObjectURL(f);
+  $('#prev').hidden = false;
+  $('#hint').hidden = true;
+  go.disabled = false;
+  out.replaceChildren(); out.className = '';
+}
+
+function el(tag, text, cls) {
+  const n = document.createElement(tag);
+  if (text) n.textContent = text;
+  if (cls) n.className = cls;
+  return n;
+}
+
+go.onclick = async () => {
+  go.disabled = true; go.textContent = 'جارٍ التحليل…';
+  out.replaceChildren(); out.className = '';
+  const fd = new FormData();
+  fd.append('image', img);
+  fd.append('kind', document.querySelector('input[name=kind]:checked').value);
+  try {
+    const r = await fetch('/api/analyze', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'حدث خطأ أثناء التحليل');
+    show(d);
+  } catch (e) {
+    out.className = 'bad';
+    out.replaceChildren(el('h2', e.message));
+  }
+  go.disabled = false; go.textContent = 'حلّل الأشعة';
+};
+
+function show(d) {
+  out.className = d.low_confidence ? 'warn' : (d.normal ? 'ok' : 'bad');
+  out.replaceChildren(
+    el('h2', d.normal ? 'الأشعة سليمة' : 'المرض: ' + d.label_ar),
+    el('p', 'نسبة ثقة النموذج: ' + d.confidence + '%')
+  );
+  if (d.low_confidence) out.append(el('p', 'النتيجة غير حاسمة لأن ثقة النموذج منخفضة. جرّب صورة أوضح أو راجع طبيباً.'));
+  d.top.forEach(t => {
+    const row = el('div', '', 'row');
+    row.append(el('span', t.label_ar), el('span', t.score + '%'));
+    const bar = el('div', '', 'bar'), fill = document.createElement('i');
+    fill.style.width = t.score + '%'; bar.append(fill);
+    out.append(row, bar);
+  });
+}
+</script>
+</body>
+</html>
